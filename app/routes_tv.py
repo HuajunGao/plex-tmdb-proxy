@@ -37,6 +37,37 @@ async def tv_provider_root():
     }
 
 
+@router.post("/tv/library/metadata/matches")
+@router.get("/tv/library/metadata/matches")
+async def tv_match(request: Request):
+    body = await _parse_request(request)
+    logger.debug("tv match request: %s", body)
+    return await handle_match(body, media_type="tv")
+
+
+async def _parse_request(request: Request) -> dict:
+    """Accept JSON body, form-encoded body, or query string params."""
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            return await request.json()
+        except Exception:
+            pass
+    if "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+        form = await request.form()
+        data = dict(form)
+    else:
+        data = dict(request.query_params)
+    # Coerce numeric strings
+    for key in ("type", "year", "manual", "includeChildren", "index", "parentIndex"):
+        if key in data and data[key] != "":
+            try:
+                data[key] = int(data[key])
+            except (ValueError, TypeError):
+                pass
+    return data
+
+
 @router.get("/tv/library/metadata/{rating_key}")
 async def tv_metadata(
     rating_key: str,
@@ -190,9 +221,3 @@ async def tv_images(rating_key: str):
             "Image": images,
         }
     }
-
-
-@router.post("/tv/library/metadata/matches")
-async def tv_match(request: Request):
-    body = await request.json()
-    return await handle_match(body, media_type="tv")

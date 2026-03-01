@@ -35,6 +35,37 @@ async def movie_provider_root():
     }
 
 
+@router.post("/movies/library/metadata/matches")
+@router.get("/movies/library/metadata/matches")
+async def movie_match(request: Request):
+    body = await _parse_request(request)
+    logger.debug("movie match request: %s", body)
+    return await handle_match(body, media_type="movie")
+
+
+async def _parse_request(request: Request) -> dict:
+    """Accept JSON body, form-encoded body, or query string params."""
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            return await request.json()
+        except Exception:
+            pass
+    if "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+        form = await request.form()
+        data = dict(form)
+    else:
+        data = dict(request.query_params)
+    # Coerce numeric strings
+    for key in ("type", "year", "manual", "includeChildren", "index", "parentIndex"):
+        if key in data and data[key] != "":
+            try:
+                data[key] = int(data[key])
+            except (ValueError, TypeError):
+                pass
+    return data
+
+
 @router.get("/movies/library/metadata/{rating_key}")
 async def movie_metadata(rating_key: str, request: Request):
     parsed = parse_rating_key(rating_key)
@@ -77,9 +108,3 @@ async def movie_images(rating_key: str):
             "Image": images,
         }
     }
-
-
-@router.post("/movies/library/metadata/matches")
-async def movie_match(request: Request):
-    body = await request.json()
-    return await handle_match(body, media_type="movie")
