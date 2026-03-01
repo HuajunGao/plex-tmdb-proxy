@@ -28,8 +28,8 @@ async def movie_provider_root():
                 {"type": 1, "Scheme": [{"scheme": ID}]},
             ],
             "Feature": [
-                {"type": "metadata", "key": "/movies/library/metadata"},
-                {"type": "match", "key": "/movies/library/metadata/matches"},
+                {"type": "metadata", "key": "/library/metadata"},
+                {"type": "match", "key": "/library/metadata/matches"},
             ],
         }
     }

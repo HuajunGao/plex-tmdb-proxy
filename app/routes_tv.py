@@ -30,8 +30,8 @@ async def tv_provider_root():
                 {"type": 4, "Scheme": [{"scheme": ID}]},
             ],
             "Feature": [
-                {"type": "metadata", "key": "/tv/library/metadata"},
-                {"type": "match", "key": "/tv/library/metadata/matches"},
+                {"type": "metadata", "key": "/library/metadata"},
+                {"type": "match", "key": "/library/metadata/matches"},
             ],
         }
     }
