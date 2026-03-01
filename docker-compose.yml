@@ -1,0 +1,17 @@
+services:
+  tmdb-plex-provider:
+    build: .
+    container_name: tmdb-plex-provider
+    restart: unless-stopped
+    ports:
+      - "5100:5100"
+    volumes:
+      - ./cache:/app/cache
+      - ./.env:/app/.env:ro
+    environment:
+      - TMDB_API_KEY=${TMDB_API_KEY}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5100/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
