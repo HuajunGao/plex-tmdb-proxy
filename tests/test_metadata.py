@@ -126,7 +126,7 @@ class TestHelpers:
         result = _rating_array(7.93)
         assert len(result) == 1
         assert result[0]["value"] == 7.9
-        assert result[0]["image"] == "themoviedb://image.rating"
+        assert result[0]["image"] == "imdb://image.rating"
 
     def test_people_cast(self):
         credits = {

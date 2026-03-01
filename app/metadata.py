@@ -16,7 +16,7 @@ def _img(path: str | None) -> str | None:
 def _rating_array(vote: float | None) -> list[dict]:
     if not vote or vote == 0:
         return []
-    return [{"image": "themoviedb://image.rating", "type": "audience", "value": round(vote, 1)}]
+    return [{"image": "imdb://image.rating", "type": "audience", "value": round(vote, 1)}]
 
 
 def _people(credits: dict | None, role_type: str) -> list[dict]:
@@ -78,8 +78,18 @@ def _guids(data: dict) -> list[dict]:
 
 
 def _content_rating(data: dict, media_type: str = "movie") -> str | None:
-    # TMDB doesn't always include this in the base response
-    # But we can return certification from release_dates if available
+    if media_type == "movie":
+        for entry in data.get("release_dates", {}).get("results", []):
+            if entry.get("iso_3166_1") == "US":
+                for rd in entry.get("release_dates", []):
+                    if rd.get("certification"):
+                        return rd["certification"]
+    else:
+        for entry in data.get("content_ratings", {}).get("results", []):
+            if entry.get("iso_3166_1") == "US":
+                rating = entry.get("rating")
+                if rating:
+                    return rating
     return None
 
 
@@ -128,7 +138,10 @@ def build_movie(data: dict) -> dict:
     meta["Rating"] = _rating_array(data.get("vote_average"))
     if data.get("vote_average"):
         meta["audienceRating"] = round(data["vote_average"], 1)
-        meta["audienceRatingImage"] = "themoviedb://image.rating"
+        meta["audienceRatingImage"] = "imdb://image.rating"
+    cr = _content_rating(data, "movie")
+    if cr:
+        meta["contentRating"] = cr
     meta["Country"] = [{"tag": c["name"]} for c in data.get("production_countries", [])]
 
     credits = data.get("credits", {})
@@ -184,7 +197,10 @@ def build_show(data: dict, include_children: bool = False, seasons_data: list | 
     meta["Rating"] = _rating_array(data.get("vote_average"))
     if data.get("vote_average"):
         meta["audienceRating"] = round(data["vote_average"], 1)
-        meta["audienceRatingImage"] = "themoviedb://image.rating"
+        meta["audienceRatingImage"] = "imdb://image.rating"
+    cr = _content_rating(data, "tv")
+    if cr:
+        meta["contentRating"] = cr
     meta["Country"] = [{"tag": c["name"]} for c in data.get("production_countries", data.get("origin_country_names", []))]
     meta["Network"] = [{"tag": n["name"]} for n in data.get("networks", [])]
 
