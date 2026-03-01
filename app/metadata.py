@@ -126,6 +126,9 @@ def build_movie(data: dict) -> dict:
     meta["Genre"] = [{"tag": g["name"]} for g in data.get("genres", [])]
     meta["Guid"] = _guids(data)
     meta["Rating"] = _rating_array(data.get("vote_average"))
+    if data.get("vote_average"):
+        meta["audienceRating"] = round(data["vote_average"], 1)
+        meta["audienceRatingImage"] = "themoviedb://image.rating"
     meta["Country"] = [{"tag": c["name"]} for c in data.get("production_countries", [])]
 
     credits = data.get("credits", {})
@@ -179,6 +182,9 @@ def build_show(data: dict, include_children: bool = False, seasons_data: list | 
     meta["Genre"] = [{"tag": g["name"]} for g in data.get("genres", [])]
     meta["Guid"] = _guids(data)
     meta["Rating"] = _rating_array(data.get("vote_average"))
+    if data.get("vote_average"):
+        meta["audienceRating"] = round(data["vote_average"], 1)
+        meta["audienceRatingImage"] = "themoviedb://image.rating"
     meta["Country"] = [{"tag": c["name"]} for c in data.get("production_countries", data.get("origin_country_names", []))]
     meta["Network"] = [{"tag": n["name"]} for n in data.get("networks", [])]
 
