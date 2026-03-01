@@ -148,8 +148,8 @@ class TestMovieProviderRoot:
         r = client.get("/movies")
         features = r.json()["MediaProvider"]["Feature"]
         keys = [f["key"] for f in features]
-        assert "/movies/library/metadata" in keys
-        assert "/movies/library/metadata/matches" in keys
+        assert "/library/metadata" in keys
+        assert "/library/metadata/matches" in keys
 
 
 class TestMovieMetadata:
