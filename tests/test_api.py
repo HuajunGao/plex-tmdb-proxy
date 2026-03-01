@@ -10,7 +10,8 @@ from app.main import app
 from app.config import settings
 
 client = TestClient(app)
-ID = settings.provider_identifier
+ID_MOVIE = settings.provider_identifier_movie
+ID_TV = settings.provider_identifier_tv
 
 # ── Sample TMDB payloads ──────────────────────────────────────────────────────
 
@@ -140,7 +141,7 @@ class TestMovieProviderRoot:
         r = client.get("/movies")
         assert r.status_code == 200
         mp = r.json()["MediaProvider"]
-        assert mp["identifier"] == ID
+        assert mp["identifier"] == ID_MOVIE
         assert mp["Types"][0]["type"] == 1
 
     def test_features_present(self):
@@ -229,7 +230,7 @@ class TestTVProviderRoot:
         r = client.get("/tv")
         assert r.status_code == 200
         mp = r.json()["MediaProvider"]
-        assert mp["identifier"] == ID
+        assert mp["identifier"] == ID_TV
         # TV supports types 2 (show), 3 (season), 4 (episode)
         type_nums = [t["type"] for t in mp["Types"]]
         assert 2 in type_nums

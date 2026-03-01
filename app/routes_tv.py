@@ -13,7 +13,7 @@ from app.match import handle_match
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-ID = settings.provider_identifier
+ID = settings.provider_identifier_tv
 
 
 @router.get("/tv")

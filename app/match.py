@@ -7,7 +7,8 @@ from app.config import settings
 from app import tmdb_client, metadata
 
 logger = logging.getLogger(__name__)
-ID = settings.provider_identifier
+ID_MOVIE = settings.provider_identifier_movie
+ID_TV = settings.provider_identifier_tv
 
 
 async def handle_match(body: dict, media_type: str = "movie") -> dict:
@@ -46,7 +47,7 @@ async def handle_match(body: dict, media_type: str = "movie") -> dict:
         "MediaContainer": {
             "offset": 0,
             "totalSize": len(results),
-            "identifier": ID,
+            "identifier": ID_MOVIE if media_type == "movie" else ID_TV,
             "size": len(results),
             "Metadata": results,
         }

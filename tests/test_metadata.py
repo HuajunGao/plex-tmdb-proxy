@@ -13,7 +13,8 @@ from app.metadata import (
 )
 from app.config import settings
 
-ID = settings.provider_identifier
+ID_MOVIE = settings.provider_identifier_movie
+ID_TV = settings.provider_identifier_tv
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -177,7 +178,7 @@ class TestBuildMovie:
         meta = build_movie(_minimal_movie())
         assert meta["type"] == "movie"
         assert meta["ratingKey"] == "tmdb-movie-535167"
-        assert meta["guid"] == f"{ID}://movie/tmdb-movie-535167"
+        assert meta["guid"] == f"{ID_MOVIE}://movie/tmdb-movie-535167"
         assert meta["title"] == "流浪地球"
         assert meta["year"] == 2019
         assert meta["originallyAvailableAt"] == "2019-02-05"

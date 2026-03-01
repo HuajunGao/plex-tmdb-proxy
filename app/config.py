@@ -11,7 +11,9 @@ class Settings(BaseSettings):
     tmdb_language: str = "zh-CN"
     tmdb_fallback_language: str = "en-US"
     tmdb_image_base: str = "https://image.tmdb.org/t/p/original"
-    provider_identifier: str = "tv.plex.agents.custom.tmdb.zh"
+    provider_identifier: str = "tv.plex.agents.custom.tmdb.zh"  # kept for backward compat
+    provider_identifier_movie: str = "tv.plex.agents.custom.tmdb.zh.movies"
+    provider_identifier_tv: str = "tv.plex.agents.custom.tmdb.zh.series"
     provider_title_movie: str = "TMDB Chinese (Movies)"
     provider_title_tv: str = "TMDB Chinese (TV Shows)"
 

@@ -2,7 +2,8 @@
 
 from app.config import settings
 
-ID = settings.provider_identifier
+ID_MOVIE = settings.provider_identifier_movie
+ID_TV = settings.provider_identifier_tv
 IMG = settings.tmdb_image_base
 
 
@@ -98,7 +99,7 @@ def build_movie(data: dict) -> dict:
     meta: dict = {
         "ratingKey": rk,
         "key": f"/library/metadata/{rk}",
-        "guid": f"{ID}://movie/{rk}",
+        "guid": f"{ID_MOVIE}://movie/{rk}",
         "type": "movie",
         "title": title,
         "originallyAvailableAt": data.get("release_date", ""),
@@ -135,7 +136,7 @@ def build_movie(data: dict) -> dict:
 
     meta["Studio"] = [{"tag": s["name"]} for s in studios]
     meta["Similar"] = [
-        {"tag": s.get("title", ""), "guid": f"{ID}://movie/{_rating_key('movie', s['id'])}"}
+        {"tag": s.get("title", ""), "guid": f"{ID_MOVIE}://movie/{_rating_key('movie', s['id'])}"}
         for s in (data.get("similar", {}).get("results", []))[:5]
     ]
 
@@ -154,7 +155,7 @@ def build_show(data: dict, include_children: bool = False, seasons_data: list | 
     meta: dict = {
         "ratingKey": rk,
         "key": f"/library/metadata/{rk}/children",
-        "guid": f"{ID}://show/{rk}",
+        "guid": f"{ID_TV}://show/{rk}",
         "type": "show",
         "title": title,
         "originallyAvailableAt": data.get("first_air_date", ""),
@@ -188,7 +189,7 @@ def build_show(data: dict, include_children: bool = False, seasons_data: list | 
     meta["Producer"] = _people(credits, "producer")
     meta["Studio"] = [{"tag": s["name"]} for s in studios]
     meta["Similar"] = [
-        {"tag": s.get("name", ""), "guid": f"{ID}://show/{_rating_key('show', s['id'])}"}
+        {"tag": s.get("name", ""), "guid": f"{ID_TV}://show/{_rating_key('show', s['id'])}"}
         for s in (data.get("similar", {}).get("results", []))[:5]
     ]
 
@@ -209,14 +210,14 @@ def _build_season_stub(show_data: dict, season: dict) -> dict:
     return {
         "ratingKey": rk,
         "key": f"/library/metadata/{rk}/children",
-        "guid": f"{ID}://season/{rk}",
+        "guid": f"{ID_TV}://season/{rk}",
         "type": "season",
         "title": season.get("name", f"Season {sn}"),
         "index": sn,
         "parentTitle": show_data.get("name", ""),
         "parentType": "show",
         "parentRatingKey": show_rk,
-        "parentGuid": f"{ID}://show/{show_rk}",
+        "parentGuid": f"{ID_TV}://show/{show_rk}",
         "parentKey": f"/library/metadata/{show_rk}",
         "parentThumb": _img(show_data.get("poster_path")),
         "thumb": _img(season.get("poster_path")),
@@ -235,14 +236,14 @@ def build_season(show_data: dict, season_data: dict, include_children: bool = Fa
     meta: dict = {
         "ratingKey": rk,
         "key": f"/library/metadata/{rk}/children",
-        "guid": f"{ID}://season/{rk}",
+        "guid": f"{ID_TV}://season/{rk}",
         "type": "season",
         "title": title,
         "index": sn,
         "parentTitle": show_data.get("name", ""),
         "parentType": "show",
         "parentRatingKey": show_rk,
-        "parentGuid": f"{ID}://show/{show_rk}",
+        "parentGuid": f"{ID_TV}://show/{show_rk}",
         "parentKey": f"/library/metadata/{show_rk}",
         "parentThumb": _img(show_data.get("poster_path")),
         "parentArt": _img(show_data.get("backdrop_path")),
@@ -273,7 +274,7 @@ def build_episode(show_data: dict, season_data: dict, ep_data: dict) -> dict:
     meta: dict = {
         "ratingKey": rk,
         "key": f"/library/metadata/{rk}",
-        "guid": f"{ID}://episode/{rk}",
+        "guid": f"{ID_TV}://episode/{rk}",
         "type": "episode",
         "title": title,
         "summary": ep_data.get("overview", ""),
@@ -286,14 +287,14 @@ def build_episode(show_data: dict, season_data: dict, ep_data: dict) -> dict:
         "grandparentTitle": show_data.get("name", ""),
         "grandparentType": "show",
         "grandparentRatingKey": show_rk,
-        "grandparentGuid": f"{ID}://show/{show_rk}",
+        "grandparentGuid": f"{ID_TV}://show/{show_rk}",
         "grandparentKey": f"/library/metadata/{show_rk}",
         "grandparentThumb": _img(show_data.get("poster_path")),
         "grandparentArt": _img(show_data.get("backdrop_path")),
         "parentTitle": season_data.get("name", f"Season {sn}"),
         "parentType": "season",
         "parentRatingKey": season_rk,
-        "parentGuid": f"{ID}://season/{season_rk}",
+        "parentGuid": f"{ID_TV}://season/{season_rk}",
         "parentKey": f"/library/metadata/{season_rk}",
         "parentThumb": _img(season_data.get("poster_path")),
         "Image": _images_array(ep_data, title, is_episode=True),
