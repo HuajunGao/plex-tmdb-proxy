@@ -39,10 +39,8 @@ PLEX_HOST = os.environ.get("PLEX_HOST", "192.168.31.41")
 PLEX_PORT = os.environ.get("PLEX_PORT", "32400")
 PLEX_TOKEN = os.environ.get("PLEX_TOKEN", "")
 AGENT_PREFIX = "tv.plex.agents.custom.tmdb.zh"
-# Preferred primary image key — MAL ratings use this; TMDB-only items may use
-# "imdb://image.rating".  The actual value is now read from the DB; this
-# constant is only the tie-break preference used when deduplicating.
-_PREFERRED_IMAGE = "themoviedb://image.rating"
+# All ratings use themoviedb://image.rating regardless of source (MAL or TMDB).
+RATING_IMAGE = "themoviedb://image.rating"
 
 
 def get_token():
@@ -64,11 +62,11 @@ def get_token():
 
 def fetch_ratings(db_path):
     """
-    Return list of (id, title, guid, rating_image, rating_value, current_audience_rating, extra_data)
+    Return list of (id, title, guid, rating_value, current_audience_rating, extra_data)
     for all items from our custom agent that have a Rating in taggings.
 
-    When an item has multiple Rating entries (e.g. MAL + TMDB), we keep only
-    the primary one: themoviedb://image.rating is preferred over imdb://image.rating.
+    When an item has multiple Rating entries we keep the highest value (MAL
+    tends to have a higher per-entry score than the TMDB fallback entry).
     """
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     cur = conn.cursor()
@@ -77,8 +75,7 @@ def fetch_ratings(db_path):
             mi.id,
             mi.title,
             mi.guid,
-            t.tag AS rating_image,
-            CAST(tg.text AS FLOAT) AS rating_value,
+            MAX(CAST(tg.text AS FLOAT)) AS rating_value,
             mi.audience_rating,
             mi.extra_data
         FROM metadata_items mi
@@ -89,42 +86,33 @@ def fetch_ratings(db_path):
           AND t.tag LIKE '%://image.rating'
           AND tg.text IS NOT NULL
           AND tg.text != ''
+        GROUP BY mi.id
         ORDER BY mi.id
     """, (f"{AGENT_PREFIX}%",))
     rows = cur.fetchall()
     conn.close()
-
-    # Deduplicate: one primary row per item_id.
-    # Prefer themoviedb://image.rating (MAL) over imdb://image.rating (TMDB).
-    seen: dict[int, tuple] = {}
-    for row in rows:
-        item_id, _title, _guid, rating_image, *_rest = row
-        if item_id not in seen:
-            seen[item_id] = row
-        elif rating_image.startswith("themoviedb://"):
-            seen[item_id] = row  # upgrade to preferred image
-    return list(seen.values())
+    return rows
 
 
-def needs_extra_data_update(extra_data_json, expected_image):
-    """Return True if at:audienceRatingImage is missing or has the wrong value."""
+def needs_extra_data_update(extra_data_json):
+    """Return True if at:audienceRatingImage is missing or not the canonical value."""
     if not extra_data_json:
         return True
     try:
         data = json.loads(extra_data_json)
-        return data.get("at:audienceRatingImage") != expected_image
+        return data.get("at:audienceRatingImage") != RATING_IMAGE
     except (json.JSONDecodeError, TypeError):
         return True
 
 
-def build_updated_extra_data(extra_data_json, rating_image):
-    """Set at:audienceRatingImage in the extra_data JSON blob."""
+def build_updated_extra_data(extra_data_json):
+    """Set at:audienceRatingImage = RATING_IMAGE in the extra_data JSON blob."""
     try:
         data = json.loads(extra_data_json) if extra_data_json else {}
     except (json.JSONDecodeError, TypeError):
         data = {}
 
-    data["at:audienceRatingImage"] = rating_image
+    data["at:audienceRatingImage"] = RATING_IMAGE
 
     # Rebuild the url field (URL-encoded query string representation)
     url_parts = []
@@ -177,11 +165,11 @@ def sync_extra_data_batch(db_path, updates, dry_run=False):
         os.unlink(tmpfile)
 
 
-def put_rating(plex_host, plex_port, token, item_id, rating_value, rating_image, dry_run=False):
+def put_rating(plex_host, plex_port, token, item_id, rating_value, dry_run=False):
     params = urllib.parse.urlencode({
         "audienceRating.value": str(round(rating_value, 1)),
         "audienceRating.locked": "0",
-        "audienceRatingImage.value": rating_image,
+        "audienceRatingImage.value": RATING_IMAGE,
         "audienceRatingImage.locked": "0",
         "X-Plex-Token": token,
     })
@@ -226,10 +214,10 @@ def main():
 
     extra_data_updates = []
 
-    for item_id, title, guid, rating_image, rating_value, current_rating, extra_data in rows:
+    for item_id, title, guid, rating_value, current_rating, extra_data in rows:
         label = title or guid or str(item_id)
         needs_rating = current_rating is None
-        needs_image = needs_extra_data_update(extra_data, rating_image)
+        needs_image = needs_extra_data_update(extra_data)
 
         if args.only_missing and not needs_rating and not needs_image:
             skipped += 1
@@ -240,11 +228,11 @@ def main():
         if needs_rating or not args.only_missing:
             parts.append(f"audienceRating={round(rating_value, 1)}")
         if needs_image or not args.only_missing:
-            parts.append(f"audienceRatingImage={rating_image}")
+            parts.append(f"audienceRatingImage={RATING_IMAGE}")
         print(f"  [{action}] id={item_id} '{label}' → {', '.join(parts)}")
 
         if needs_rating or not args.only_missing:
-            ok = put_rating(args.plex_host, args.plex_port, args.token, item_id, rating_value, rating_image, args.dry_run)
+            ok = put_rating(args.plex_host, args.plex_port, args.token, item_id, rating_value, args.dry_run)
             if ok:
                 updated_rating += 1
             else:
@@ -252,7 +240,7 @@ def main():
                 print(f"  FAILED PUT for id={item_id}")
 
         if needs_image or not args.only_missing:
-            new_extra = build_updated_extra_data(extra_data, rating_image)
+            new_extra = build_updated_extra_data(extra_data)
             extra_data_updates.append((item_id, new_extra))
 
     # Batch-update extra_data via Plex SQLite
