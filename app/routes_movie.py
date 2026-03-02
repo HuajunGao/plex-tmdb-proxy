@@ -78,7 +78,7 @@ async def movie_metadata(rating_key: str, request: Request):
 
     meta = metadata.build_movie(data)
     resolved = await rating_resolver.resolve(parsed.tmdb_id, "movie", data)
-    rating_resolver.apply_to_meta(meta, resolved, tmdb_score=float(data.get("vote_average") or 0))
+    rating_resolver.apply_to_meta(meta, resolved)
     return {
         "MediaContainer": {
             "offset": 0,

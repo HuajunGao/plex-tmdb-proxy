@@ -103,42 +103,26 @@ class TestRatingResolver:
             "imdbRatingCount": 1234,
         }
         r = RatingResult(score=8.7, vote_count=592000, image="themoviedb://image.rating", source="mal")
-        rating_resolver.apply_to_meta(meta, r, tmdb_score=7.9)
+        rating_resolver.apply_to_meta(meta, r)
         assert meta["audienceRating"] == 8.7
         assert meta["audienceRatingImage"] == "themoviedb://image.rating"
+        assert len(meta["Rating"]) == 1
         assert meta["Rating"][0]["value"] == 8.7
         assert meta["imdbRatingCount"] == 592000
 
     @pytest.mark.asyncio
-    async def test_apply_to_meta_dual_rating_when_mal_and_tmdb_differ(self):
+    async def test_apply_to_meta_single_rating_always(self):
         from app import rating_resolver
         meta = {}
         r = RatingResult(score=8.7, vote_count=592000, image="themoviedb://image.rating", source="mal")
-        rating_resolver.apply_to_meta(meta, r, tmdb_score=7.9)
-        assert len(meta["Rating"]) == 2
-        assert meta["Rating"][0] == {"image": "themoviedb://image.rating", "type": "audience", "value": 8.7}
-        assert meta["Rating"][1] == {"image": "imdb://image.rating", "type": "audience", "value": 7.9}
-
-    @pytest.mark.asyncio
-    async def test_apply_to_meta_single_rating_when_scores_same(self):
-        from app import rating_resolver
-        meta = {}
-        r = RatingResult(score=8.7, vote_count=100, image="themoviedb://image.rating", source="mal")
-        rating_resolver.apply_to_meta(meta, r, tmdb_score=8.7)
+        rating_resolver.apply_to_meta(meta, r)
         assert len(meta["Rating"]) == 1
-
-    @pytest.mark.asyncio
-    async def test_apply_to_meta_single_rating_for_tmdb_source(self):
-        from app import rating_resolver
-        meta = {}
-        r = RatingResult(score=7.9, vote_count=100, image="themoviedb://image.rating", source="tmdb")
-        rating_resolver.apply_to_meta(meta, r, tmdb_score=7.9)
-        assert len(meta["Rating"]) == 1
+        assert meta["Rating"][0]["image"] == "themoviedb://image.rating"
 
     @pytest.mark.asyncio
     async def test_apply_to_meta_noop_on_zero_score(self):
         from app import rating_resolver
         meta = {"audienceRating": 7.9}
         r = RatingResult(score=0.0, vote_count=0, image="themoviedb://image.rating", source="tmdb")
-        rating_resolver.apply_to_meta(meta, r, tmdb_score=0.0)
+        rating_resolver.apply_to_meta(meta, r)
         assert meta["audienceRating"] == 7.9  # unchanged

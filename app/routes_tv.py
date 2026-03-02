@@ -96,7 +96,7 @@ async def _show_response(tmdb_id: int, include_children: int):
 
     meta = metadata.build_show(data, include_children=bool(include_children))
     resolved = await rating_resolver.resolve(tmdb_id, "tv", data)
-    rating_resolver.apply_to_meta(meta, resolved, tmdb_score=float(data.get("vote_average") or 0))
+    rating_resolver.apply_to_meta(meta, resolved)
     return {
         "MediaContainer": {
             "offset": 0,
