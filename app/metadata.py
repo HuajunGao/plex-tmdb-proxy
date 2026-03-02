@@ -221,7 +221,10 @@ def build_show(data: dict, include_children: bool = False, seasons_data: list | 
     cr = _content_rating(data, "tv")
     if cr:
         meta["contentRating"] = cr
-    meta["Country"] = [{"tag": c["name"]} for c in data.get("production_countries", data.get("origin_country_names", []))]
+    _prod_countries = data.get("production_countries") or []
+    if not _prod_countries:
+        _prod_countries = [{"name": c} for c in data.get("origin_country", [])]
+    meta["Country"] = [{"tag": c["name"]} for c in _prod_countries]
     meta["Network"] = [{"tag": n["name"]} for n in data.get("networks", [])]
 
     credits = data.get("credits", {})
@@ -249,7 +252,7 @@ def _build_season_stub(show_data: dict, season: dict) -> dict:
     sn = season["season_number"]
     rk = _rating_key("show", show_id, f"-s{sn}")
     show_rk = _rating_key("show", show_id)
-    return {
+    stub: dict = {
         "ratingKey": rk,
         "key": f"/library/metadata/{rk}/children",
         "guid": f"{ID_TV}://season/{rk}",
@@ -266,6 +269,9 @@ def _build_season_stub(show_data: dict, season: dict) -> dict:
         "originallyAvailableAt": season.get("air_date", ""),
         "year": int(season["air_date"][:4]) if season.get("air_date") and len(season["air_date"]) >= 4 else None,
     }
+    if season.get("overview"):
+        stub["summary"] = season["overview"]
+    return stub
 
 
 def build_season(show_data: dict, season_data: dict, include_children: bool = False) -> dict:
@@ -292,6 +298,7 @@ def build_season(show_data: dict, season_data: dict, include_children: bool = Fa
         "thumb": _img(season_data.get("poster_path")),
         "originallyAvailableAt": season_data.get("air_date", ""),
         "year": int(season_data["air_date"][:4]) if season_data.get("air_date") and len(season_data["air_date"]) >= 4 else None,
+        "summary": season_data.get("overview", ""),
         "Image": _images_array(season_data, title),
     }
 
@@ -342,6 +349,9 @@ def build_episode(show_data: dict, season_data: dict, ep_data: dict) -> dict:
         "Image": _images_array(ep_data, title, is_episode=True),
         "Rating": _rating_array(ep_data.get("vote_average")),
     }
+    if ep_data.get("vote_average"):
+        meta["audienceRating"] = round(ep_data["vote_average"], 1)
+        meta["audienceRatingImage"] = "imdb://image.rating"
 
     # Episode credits.
     # When fetched individually (get_tv_episode), TMDB returns a nested "credits" dict.

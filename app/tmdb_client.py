@@ -139,7 +139,7 @@ async def get_tv_episode(
     data = await _get(
         f"/tv/{tmdb_id}/season/{season_number}/episode/{episode_number}",
         language=settings.tmdb_language,
-        append_to_response="credits,images",
+        append_to_response="credits,images,external_ids",
     )
     if data is None:
         cache.set(cache_key, "__NOT_FOUND__", settings.cache_ttl_not_found)
