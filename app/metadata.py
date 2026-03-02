@@ -139,9 +139,15 @@ def build_movie(data: dict) -> dict:
     if data.get("vote_average"):
         meta["audienceRating"] = round(data["vote_average"], 1)
         meta["audienceRatingImage"] = "imdb://image.rating"
+    if data.get("vote_count"):
+        meta["imdbRatingCount"] = data["vote_count"]
     cr = _content_rating(data, "movie")
     if cr:
         meta["contentRating"] = cr
+    if data.get("budget"):
+        meta["budget"] = data["budget"]
+    if data.get("revenue"):
+        meta["revenue"] = data["revenue"]
     meta["Country"] = [{"tag": c["name"]} for c in data.get("production_countries", [])]
 
     credits = data.get("credits", {})
@@ -151,6 +157,18 @@ def build_movie(data: dict) -> dict:
     meta["Producer"] = _people(credits, "producer")
 
     meta["Studio"] = [{"tag": s["name"]} for s in studios]
+
+    col = data.get("belongs_to_collection")
+    if col:
+        col_rk = f"tmdb-collection-{col['id']}"
+        meta["Collection"] = [{
+            "tag": col["name"],
+            "guid": f"{ID_MOVIE}://collection/{col_rk}",
+            "key": f"/library/metadata/{col_rk}",
+            "thumb": _img(col.get("poster_path")),
+            "art": _img(col.get("backdrop_path")),
+        }]
+
     meta["Similar"] = [
         {"tag": s.get("title", ""), "guid": f"{ID_MOVIE}://movie/{_rating_key('movie', s['id'])}"}
         for s in (data.get("similar", {}).get("results", []))[:5]
@@ -198,6 +216,8 @@ def build_show(data: dict, include_children: bool = False, seasons_data: list | 
     if data.get("vote_average"):
         meta["audienceRating"] = round(data["vote_average"], 1)
         meta["audienceRatingImage"] = "imdb://image.rating"
+    if data.get("vote_count"):
+        meta["imdbRatingCount"] = data["vote_count"]
     cr = _content_rating(data, "tv")
     if cr:
         meta["contentRating"] = cr
