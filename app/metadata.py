@@ -343,12 +343,27 @@ def build_episode(show_data: dict, season_data: dict, ep_data: dict) -> dict:
         "Rating": _rating_array(ep_data.get("vote_average")),
     }
 
-    # Episode credits
-    ep_credits = ep_data.get("credits", {})
+    # Episode credits.
+    # When fetched individually (get_tv_episode), TMDB returns a nested "credits" dict.
+    # When bulk-fetched from a season response, each episode only has top-level "crew"
+    # and "guest_stars" fields — no "credits" dict.  We normalise both cases here.
+    ep_credits = ep_data.get("credits")
     if ep_credits:
-        meta["Role"] = _people(ep_credits, "cast")
-        meta["Director"] = _people(ep_credits, "director")
-        meta["Writer"] = _people(ep_credits, "writer")
+        # Individual episode fetch: full credits dict
+        effective_cast = ep_credits.get("cast", [])
+        effective_crew = ep_credits.get("crew", [])
+    else:
+        # Bulk from season: use episode's own crew + guest_stars
+        effective_crew = ep_data.get("crew", [])
+        effective_cast = ep_data.get("guest_stars", [])
+        # Fall back to season-level regular cast when no episode-specific cast
+        if not effective_cast:
+            effective_cast = season_data.get("credits", {}).get("cast", [])
+
+    normalised = {"cast": effective_cast, "crew": effective_crew}
+    meta["Role"] = _people(normalised, "cast")
+    meta["Director"] = _people(normalised, "director")
+    meta["Writer"] = _people(normalised, "screenplay") + _people(normalised, "writer")
 
     # Guid for episode
     guids = []
