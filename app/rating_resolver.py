@@ -39,8 +39,13 @@ async def resolve(tmdb_id: int, media_type: str, tmdb_data: dict) -> RatingResul
     )
 
 
-def apply_to_meta(meta: dict, result: RatingResult) -> None:
+def apply_to_meta(meta: dict, result: RatingResult, tmdb_score: float = 0.0) -> None:
     """Overwrite the rating fields in a metadata dict in-place.
+
+    When the primary source is MAL and a distinct TMDB score is available,
+    both scores are included in Rating[] so Plex can render them side-by-side.
+    MAL uses themoviedb://image.rating; TMDB secondary uses imdb://image.rating
+    (star icon, same 0-10 scale, visually distinguishable).
 
     No-op when score is 0 (avoids showing a 0.0 rating badge).
     """
@@ -48,6 +53,17 @@ def apply_to_meta(meta: dict, result: RatingResult) -> None:
         return
     meta["audienceRating"] = result.score
     meta["audienceRatingImage"] = result.image
-    meta["Rating"] = [{"image": result.image, "type": "audience", "value": result.score}]
+
+    ratings = [{"image": result.image, "type": "audience", "value": result.score}]
+    # Append TMDB as a secondary entry when MAL is the primary source and
+    # the scores differ (otherwise showing two identical values is pointless).
+    if result.source == "mal" and tmdb_score and round(tmdb_score, 1) != result.score:
+        ratings.append({
+            "image": "imdb://image.rating",
+            "type": "audience",
+            "value": round(tmdb_score, 1),
+        })
+
+    meta["Rating"] = ratings
     if result.vote_count:
         meta["imdbRatingCount"] = result.vote_count
