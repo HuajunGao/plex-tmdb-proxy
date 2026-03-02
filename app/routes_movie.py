@@ -88,6 +88,18 @@ async def movie_metadata(rating_key: str, request: Request):
     }
 
 
+@router.get("/movies/library/metadata/{rating_key}/extras")
+async def movie_extras(rating_key: str):
+    parsed = parse_rating_key(rating_key)
+    if not parsed or parsed.media_type != "movie":
+        return JSONResponse(status_code=404, content={"error": "not found"})
+    return {
+        "MediaContainer": {
+            "offset": 0, "totalSize": 0, "identifier": ID, "size": 0, "Metadata": []
+        }
+    }
+
+
 @router.get("/movies/library/metadata/{rating_key}/images")
 async def movie_images(rating_key: str):
     parsed = parse_rating_key(rating_key)

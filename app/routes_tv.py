@@ -201,6 +201,18 @@ async def tv_children(rating_key: str):
     }
 
 
+@router.get("/tv/library/metadata/{rating_key}/extras")
+async def tv_extras(rating_key: str):
+    parsed = parse_rating_key(rating_key)
+    if not parsed or parsed.media_type not in ("show", "season", "episode"):
+        return JSONResponse(status_code=404, content={"error": "not found"})
+    return {
+        "MediaContainer": {
+            "offset": 0, "totalSize": 0, "identifier": ID, "size": 0, "Metadata": []
+        }
+    }
+
+
 @router.get("/tv/library/metadata/{rating_key}/images")
 async def tv_images(rating_key: str):
     parsed = parse_rating_key(rating_key)
