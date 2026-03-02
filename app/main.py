@@ -1,6 +1,8 @@
 """TMDB Chinese Metadata Provider for Plex."""
 
+import asyncio
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -8,7 +10,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.routes_movie import router as movie_router
 from app.routes_tv import router as tv_router
-from app import cache
+from app import cache, anime_list
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -16,7 +18,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="TMDB Chinese Plex Provider", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Preload anime-list mapping in the background so startup isn't blocked
+    asyncio.create_task(anime_list.ensure_loaded())
+    yield
+
+
+app = FastAPI(title="TMDB Chinese Plex Provider", version="1.0.0", lifespan=lifespan)
 app.include_router(movie_router)
 app.include_router(tv_router)
 

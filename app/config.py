@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     provider_identifier_tv: str = "tv.plex.agents.custom.tmdb.zh.series"
     provider_title_movie: str = "TMDB Chinese (Movies)"
     provider_title_tv: str = "TMDB Chinese (TV Shows)"
+    # Optional: MAL official API client_id (https://myanimelist.net/apiconfig)
+    # If not set, Jikan v4 (no key needed) is used automatically.
+    mal_client_id: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

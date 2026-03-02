@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, Query
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app import tmdb_client, metadata
+from app import tmdb_client, metadata, rating_resolver
 from app.utils import parse_rating_key
 from app.match import handle_match
 
@@ -95,6 +95,8 @@ async def _show_response(tmdb_id: int, include_children: int):
         return JSONResponse(status_code=404, content={"error": "not found"})
 
     meta = metadata.build_show(data, include_children=bool(include_children))
+    resolved = await rating_resolver.resolve(tmdb_id, "tv", data)
+    rating_resolver.apply_to_meta(meta, resolved)
     return {
         "MediaContainer": {
             "offset": 0,
