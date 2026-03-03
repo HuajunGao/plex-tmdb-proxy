@@ -359,16 +359,24 @@ def build_episode(show_data: dict, season_data: dict, ep_data: dict) -> dict:
     # and "guest_stars" fields — no "credits" dict.  We normalise both cases here.
     ep_credits = ep_data.get("credits")
     if ep_credits:
-        # Individual episode fetch: full credits dict
-        effective_cast = ep_credits.get("cast", [])
+        # Individual episode fetch: merge regular cast + guest_stars from credits
+        regular = ep_credits.get("cast", [])
+        guests = ep_credits.get("guest_stars", [])
         effective_crew = ep_credits.get("crew", [])
     else:
-        # Bulk from season: use episode's own crew + guest_stars
+        # Bulk from season: merge season regular cast + episode guest_stars
+        regular = season_data.get("credits", {}).get("cast", [])
+        guests = ep_data.get("guest_stars", [])
         effective_crew = ep_data.get("crew", [])
-        effective_cast = ep_data.get("guest_stars", [])
-        # Fall back to season-level regular cast when no episode-specific cast
-        if not effective_cast:
-            effective_cast = season_data.get("credits", {}).get("cast", [])
+
+    # Deduplicate by person id, regular cast first then guests
+    _seen: set[int] = set()
+    effective_cast: list[dict] = []
+    for p in regular + guests:
+        pid = p.get("id")
+        if pid is not None and pid not in _seen:
+            _seen.add(pid)
+            effective_cast.append(p)
 
     normalised = {"cast": effective_cast, "crew": effective_crew}
     meta["Role"] = _people(normalised, "cast")
