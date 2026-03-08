@@ -227,8 +227,26 @@ def build_show(data: dict, include_children: bool = False, seasons_data: list | 
     meta["Country"] = [{"tag": c["name"]} for c in _prod_countries]
     meta["Network"] = [{"tag": n["name"]} for n in data.get("networks", [])]
 
+    # Prefer aggregate_credits (all seasons union) over credits (latest season only)
+    agg = data.get("aggregate_credits")
+    if agg and agg.get("cast"):
+        # aggregate_credits cast: each person has roles=[{character, episode_count},...]
+        # Flatten to standard format: join characters with " / ", sort by order
+        agg_cast = sorted(agg["cast"], key=lambda p: p.get("order", 9999))
+        meta["Role"] = [
+            {
+                "tag": p.get("name", ""),
+                "role": " / ".join(
+                    r["character"] for r in p.get("roles", []) if r.get("character")
+                ),
+                "thumb": _img(p.get("profile_path")),
+            }
+            for p in agg_cast[:20]
+        ]
+    else:
+        credits = data.get("credits", {})
+        meta["Role"] = _people(credits, "cast")
     credits = data.get("credits", {})
-    meta["Role"] = _people(credits, "cast")
     meta["Director"] = _people(credits, "director")
     meta["Writer"] = _people(credits, "screenplay") + _people(credits, "writer")
     meta["Producer"] = _people(credits, "producer")

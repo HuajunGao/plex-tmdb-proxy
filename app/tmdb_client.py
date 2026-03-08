@@ -100,7 +100,7 @@ async def get_tv(tmdb_id: int) -> dict | None:
     data = await _get(
         f"/tv/{tmdb_id}",
         language=lang,
-        append_to_response="credits,images,external_ids,similar,content_ratings",
+        append_to_response="aggregate_credits,credits,images,external_ids,similar,content_ratings",
         include_image_language=f"{lang[:2]},en,null",
     )
     if data is None:
