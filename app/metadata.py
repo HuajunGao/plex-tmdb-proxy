@@ -24,7 +24,7 @@ def _people(credits: dict | None, role_type: str) -> list[dict]:
         return []
     items = []
     if role_type == "cast":
-        for i, p in enumerate(credits.get("cast", [])[:20]):
+        for i, p in enumerate(credits.get("cast", [])):
             entry: dict = {"tag": p["name"], "order": i + 1}
             if p.get("profile_path"):
                 entry["thumb"] = _img(p["profile_path"])
@@ -241,7 +241,7 @@ def build_show(data: dict, include_children: bool = False, seasons_data: list | 
                 ),
                 "thumb": _img(p.get("profile_path")),
             }
-            for p in agg_cast[:20]
+            for p in agg_cast
         ]
     else:
         credits = data.get("credits", {})
