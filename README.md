@@ -1,15 +1,25 @@
 # TMDB Chinese Metadata Provider for Plex
 
-A custom metadata provider that supplies **Chinese metadata** from [TMDB](https://www.themoviedb.org/) to Plex Media Server, solving the problem of Plex's built-in agents returning English-only metadata for Chinese libraries.
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+A **self-hosted** custom metadata provider that supplies **Chinese (zh-CN) metadata** from [TMDB](https://www.themoviedb.org/) to Plex Media Server — including **MAL (MyAnimeList) ratings** for anime.
+
+Plex's built-in agents return English-only metadata and miss MAL ratings entirely. This provider fixes both.
 
 ## Features
 
-- 🇨🇳 Chinese titles, summaries, and genre tags (`zh-CN`)
-- 🎬 Movies (type 1) + TV shows / seasons / episodes (type 2/3/4)
-- 🔤 Automatic English fallback when Chinese title equals the original
+- 🇨🇳 Chinese titles, summaries, and genre tags (`zh-CN`) with English fallback
+- 🎬 Full support: Movies · TV Shows · Seasons · Episodes
+- 🎌 **Anime ratings from MyAnimeList** via [Fribb/anime-lists](https://github.com/Fribb/anime-lists) mapping — no MAL API key required
+- ⭐ Automatic rating source: MAL score when available, TMDB vote_average as fallback
+- 👥 **Complete cast for multi-season shows** via TMDB `aggregate_credits` (all seasons union, not just latest)
 - 🖼️ Posters, backdrops, and clear logos from TMDB
-- 💾 SQLite-based disk cache (7-day TTL, 1-hour TTL for not-found)
+- 💾 SQLite-based disk cache (7-day TTL)
 - 🐳 Docker / Docker Compose ready — deploy to any LXC or VM
+- 🔄 `sync_ratings.py` script to backfill ratings into the Plex database
 
 ## Architecture
 
@@ -20,9 +30,11 @@ Plex Media Server
       ▼
 FastAPI App (port 5100)
       │
-      ├─ SQLite cache  ./cache/cache.db
+      ├─ SQLite cache        ./cache/cache.db
+      ├─ Anime-list mapping  ./cache/anime-list.json   (Fribb/anime-lists, refreshed every 24h)
       │
-      └─ TMDB API  api.themoviedb.org/3
+      ├─ TMDB API            api.themoviedb.org/3
+      └─ Jikan API (MAL)     api.jikan.moe/v4          (anime only, no key needed)
 ```
 
 ## Quick Start
@@ -155,8 +167,99 @@ curl http://localhost:5100/tv/library/metadata/tmdb-show-50878-s1/children
 | `CACHE_DIR` | `./cache` | Directory for SQLite cache database |
 | `CACHE_TTL` | `604800` | Cache TTL in seconds (7 days) |
 | `CACHE_TTL_NOT_FOUND` | `3600` | TTL for not-found entries (1 hour) |
+| `MAL_CLIENT_ID` | *(optional)* | MAL official API key — if set, uses MAL API directly instead of Jikan |
 
-## Deploy to Proxmox LXC
+## Anime Ratings (MAL Integration)
+
+For anime, the provider automatically looks up MAL ratings via the [Fribb/anime-lists](https://github.com/Fribb/anime-lists) TMDB→MAL mapping. No MAL API key is required — it uses the [Jikan v4](https://jikan.moe/) public API by default.
+
+**How it works:**
+1. On startup the provider downloads `anime-list-full.json` (~6 MB) and builds an in-memory TMDB ID → MAL ID index
+2. For each anime item, the MAL score replaces the TMDB vote_average
+3. The rating image is always `themoviedb://image.rating` (the blue TMDB badge in Plex UI)
+4. Non-anime items silently fall back to TMDB vote_average
+
+**Optional: MAL official API**
+
+Set `MAL_CLIENT_ID` in `.env` to use the MAL official API instead of Jikan (higher rate limits, more reliable):
+
+```bash
+MAL_CLIENT_ID=your_mal_client_id
+```
+
+## Rating Sync Script
+
+Plex's custom HTTP metadata provider API has a fundamental limitation: it **cannot directly write** `audience_rating` or `audienceRatingImage` into the Plex database. The provider can only populate the `taggings` table (the `Rating[]` array), which controls the star-rating overlay on posters — but the audience rating badge (the coloured score shown in detail views) requires separate writes to Plex.
+
+`scripts/sync_ratings.py` bridges this gap by:
+
+1. Reading `Rating` tag values from the Plex SQLite `taggings` table
+2. Calling `PUT /library/metadata/{id}` to write `audience_rating` into `metadata_items`
+3. Writing `at:audienceRatingImage` into the `extra_data` JSON blob via the bundled `Plex SQLite` binary (required because Plex uses custom FTS triggers that the system `sqlite3` cannot handle)
+
+> ⚠️ **This script must run on the same machine as Plex Media Server** because it needs direct access to the Plex SQLite database and the `Plex SQLite` binary.
+
+```bash
+# One-time: only fix items that are missing ratings
+python3 scripts/sync_ratings.py \
+  --plex-host 192.168.1.x --token YOUR_PLEX_TOKEN
+
+# Full refresh (after bulk metadata refresh or agent change)
+python3 scripts/sync_ratings.py --all \
+  --plex-host 192.168.1.x --token YOUR_PLEX_TOKEN
+
+# Preview without writing
+python3 scripts/sync_ratings.py --dry-run
+```
+
+**Recommended cron jobs (on the Plex server):**
+
+```bash
+# Store token — path is readable only by root
+grep -oP 'PlexOnlineToken="\K[^"]+' \
+  "/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Preferences.xml" \
+  | xargs -I{} sh -c 'echo "PLEX_TOKEN={}" > /etc/plex-sync.env && chmod 600 /etc/plex-sync.env'
+
+# /etc/cron.d/plex-sync
+# Weekly token refresh (Plex token is permanent but refresh just in case)
+0 2 * * 0  root  /root/plex-tmdb-proxy/scripts/refresh_token.sh >> /var/log/plex-sync.log 2>&1
+# Daily fast sync (only missing)
+0 3 * * *  root  source /etc/plex-sync.env && cd /root/plex-tmdb-proxy && git pull -q && \
+           python3 scripts/sync_ratings.py --plex-host 127.0.0.1 --token "$PLEX_TOKEN" \
+           >> /var/log/plex-sync.log 2>&1
+# Weekly full refresh
+0 4 * * 1  root  source /etc/plex-sync.env && cd /root/plex-tmdb-proxy && \
+           python3 scripts/sync_ratings.py --all --plex-host 127.0.0.1 --token "$PLEX_TOKEN" \
+           >> /var/log/plex-sync.log 2>&1
+```
+
+## Known Limitations
+
+### Ratings
+
+| Limitation | Detail |
+|------------|--------|
+| **Two-step rating write** | Plex's provider API cannot write `audienceRating` directly. A separate `sync_ratings.py` run is needed after each bulk metadata refresh (see above). |
+| **Rating badge image** | The badge always shows the TMDB blue logo (`themoviedb://image.rating`) even when the score comes from MAL. Plex does not support custom rating images via the provider API. |
+| **Plex client display** | Some older Plex clients or web versions only display one rating entry even if multiple are provided. |
+| **Jikan rate limits** | The free Jikan API allows ~3 req/s. For large anime libraries the first cold-start population may be slow; results are cached for 7 days. |
+
+### Cast
+
+| Limitation | Detail |
+|------------|--------|
+| **Show-level cast shows all seasons** | Plex displays the show-level cast list on the show detail page. We use TMDB `aggregate_credits` (union of all seasons) rather than `credits` (latest season only). For very long-running shows this can be 100+ entries. |
+| **Season/episode cast is per-season** | Episode cast = season regular cast + episode guest stars merged. TMDB episode-level `credits.cast` is often empty; guest_stars contains only special appearances. |
+| **No per-season aggregate** | TMDB does not provide an `aggregate_credits` equivalent for individual seasons. Season pages show the regular cast for that season only. |
+
+### Matching
+
+| Limitation | Detail |
+|------------|--------|
+| **TMDB ID only** | The provider uses TMDB IDs as primary keys. If Plex cannot auto-match a file to a TMDB entry (e.g. unusual filename), you need to manually fix the match in Plex. |
+| **Multi-season anime** | Some anime series split into separate TMDB entries per cour/arc. The Fribb anime-list maps all entries; the first match (lowest MAL ID) wins for the TMDB show. |
+
+
 
 ```bash
 # On your LXC (with Docker installed)
@@ -176,19 +279,29 @@ Then register the provider in Plex using the LXC's IP address.
 ```
 plex-tmdb-proxy/
 ├── app/
-│   ├── main.py          # FastAPI app entry point + health/cache routes
-│   ├── config.py        # Settings via pydantic-settings + .env
-│   ├── cache.py         # SQLite disk cache
-│   ├── tmdb_client.py   # Async TMDB API client
-│   ├── metadata.py      # TMDB → Plex response builder
-│   ├── match.py         # Match endpoint logic
-│   ├── routes_movie.py  # Movie provider routes
-│   ├── routes_tv.py     # TV provider routes
-│   └── utils.py         # Rating key parser
+│   ├── main.py              # FastAPI app entry point + health/cache routes
+│   ├── config.py            # Settings via pydantic-settings + .env
+│   ├── cache.py             # SQLite disk cache
+│   ├── tmdb_client.py       # Async TMDB API client (movie, TV, aggregate_credits)
+│   ├── metadata.py          # TMDB → Plex XML/JSON response builder
+│   ├── match.py             # Match endpoint logic
+│   ├── routes_movie.py      # Movie provider routes
+│   ├── routes_tv.py         # TV provider routes
+│   ├── utils.py             # Rating key parser
+│   ├── anime_list.py        # Fribb/anime-lists downloader + TMDB→MAL index
+│   ├── rating_resolver.py   # MAL-first rating resolution + apply_to_meta()
+│   └── providers/
+│       ├── base.py          # RatingResult dataclass
+│       └── mal.py           # Jikan v4 / MAL official API client
+├── scripts/
+│   ├── sync_ratings.py      # Backfill audience_rating + audienceRatingImage to Plex DB
+│   └── refresh_token.sh     # Read Plex token from Preferences.xml → /etc/plex-sync.env
 ├── tests/
-│   ├── test_metadata.py # Unit tests for metadata builder
-│   ├── test_utils.py    # Unit tests for rating key parser
-│   └── test_api.py      # Integration tests for API endpoints
+│   ├── test_metadata.py         # Unit tests for metadata builder
+│   ├── test_utils.py            # Unit tests for rating key parser
+│   ├── test_api.py              # Integration tests for API endpoints
+│   └── test_rating_resolver.py  # Unit tests for MAL rating resolver
+├── cache/                   # Runtime cache (gitignored): cache.db, anime-list.json
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
@@ -196,6 +309,16 @@ plex-tmdb-proxy/
 └── README.md
 ```
 
+## Contributing
+
+PRs welcome. The test suite covers metadata building, rating resolution, and API endpoints:
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests/ -v
+```
+
 ## License
 
 MIT
+
